@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 from perfect_analyst import PerfectAnalyst
 
-from text_to_sql_agent.cli import main
+from text_to_sql_agent.cli import MODEL, main
+from text_to_sql_agent.llm import run_dir_name
 
 REPO = Path(__file__).resolve().parents[1]
 README = "# Sample\n\n<!-- results:start -->\nNot measured yet.\n<!-- results:end -->\n"
@@ -38,7 +39,7 @@ def test_record_then_replay_gives_the_same_report_without_a_model(tmp_path, ware
     analyst = record_practice(root)
     recorded = report(root)
     assert analyst.calls == PRACTICE_ITEMS
-    run_dir = root / "runs" / "practice" / "ministral-3-8b"
+    run_dir = root / "runs" / "practice" / run_dir_name(MODEL)
     assert (run_dir / "calls.jsonl").exists()
     run_info = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
     assert run_info["items"] == PRACTICE_ITEMS and run_info["split"] == "practice"

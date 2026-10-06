@@ -32,14 +32,15 @@ from .agent import Agent, Answer, Proposal
 from .database import connect
 from .examples import ExampleBank
 from .guardrails import MAX_ROWS
-from .llm import DEFAULT_MODEL, LLM, ModelUnavailable, ReplayMiss, machine_description, ollama_info, run_dir_name
+from .llm import LLM, ModelUnavailable, ReplayMiss, machine_description, ollama_info, run_dir_name
 from .metrics import CATEGORIES, answer_correct, score
 from .resultset import encode_cell
 from .semantic import SemanticLayer, load_semantic
 
 ROOT = Path(__file__).resolve().parents[2]
 TITLE = "Text-to-SQL agent: acceptance test"
-NUM_CTX = 16384
+NUM_CTX = 8192  # the largest prompt plus answer measured 4,666 tokens
+MODEL = "ministral-3:14b"  # on ministral-3:8b this agent missed the accuracy target: see the README
 PREVIEW_ROWS = 10
 LOGGED_ROWS = 50
 
@@ -358,7 +359,7 @@ def cmd_readme(args: argparse.Namespace, ws: Workspace, transport=None) -> int:
 def main(argv: list[str] | None = None, *, root: Path = ROOT, transport=None) -> int:
     parser = argparse.ArgumentParser(prog="python -m text_to_sql_agent", description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
-    model = os.environ.get("AGENT_MODEL", DEFAULT_MODEL)
+    model = os.environ.get("AGENT_MODEL", MODEL)
     for name in ("demo", "accept"):
         command = commands.add_parser(name)
         command.add_argument("--live", action="store_true", help="ask the model instead of the stored run")

@@ -5,7 +5,7 @@ runs it only inside the guardrails. What is unsafe is refused, with the reason.
 
 [![acceptance](https://github.com/i-teamcollage/text-to-sql-agent/actions/workflows/acceptance.yml/badge.svg)](https://github.com/i-teamcollage/text-to-sql-agent/actions/workflows/acceptance.yml)
 ![license MIT](https://img.shields.io/badge/license-MIT-blue)
-![model Ministral 3 8B](https://img.shields.io/badge/model-Ministral%203%208B%2C%20local-6f42c1)
+![model Ministral 3 14B](https://img.shields.io/badge/model-Ministral%203%2014B%2C%20local-6f42c1)
 
 > A working sample by [I-Team Collage](https://iteamcollage.com). It runs on a free, open model on a
 > laptop and queries a made-up retail warehouse. Nothing in this repository comes from a client.
@@ -40,11 +40,22 @@ The acceptance test was written before the agent was built. It runs on 50 made-u
 and 10 unsafe requests the agent was never tuned on.
 
 <!-- results:start -->
-Not measured yet.
+| Criterion | Target | Measured | 95% interval | Result |
+|---|---|---|---|---|
+| Questions answered correctly (result matches the reference) | ≥ 80% | 90.0% | 78.6–95.7% | PASS |
+| Unsafe requests blocked | = 100% | 100.0% | 72.2–100.0% | PASS |
+| Executed queries within the row limit and timeout | = 100% | 100.0% | 92.9–100.0% | PASS |
+
+60 made-up test cases, ministral-3:14b on Apple M4, 16 GB, recorded 2026-10-06, median 69.2 s per item.
 <!-- results:end -->
 
 A question counts as answered correctly only when the query's result matches the reference answer,
 row for row. Declining a normal question counts as wrong.
+
+**Which model.** This sample runs on Ministral 3 14B. On the smaller Ministral 3 8B, which the other
+samples use, it answered 74% of the test questions correctly: below the 80% target, with every unsafe
+request still refused ([full report](reports/ministral-3-8b/acceptance.md)). The 14B model from the same
+family was the fallback agreed before the build, and the table above is its run.
 
 The unsafe requests are the point of the test. Every one of them must be refused:
 
@@ -78,6 +89,11 @@ The model writes the SQL, but the code decides what runs. Each layer works on it
 A parse or execution error is sent back to the model with the error, at most twice. So is a query that
 reads the computer's clock: the made-up data stops on 30 September 2026, which counts as today. A
 security violation is refused at once and never sent back, so the model cannot be coaxed around a rule.
+
+Before a query runs, the code also checks the analysts' conventions that change an answer without causing
+an error: the dates a phrase like "last quarter" or "last 30 days" stands for, a count when the question
+asks how many, growth that subtracts before it divides, and month-over-month figures computed before the
+months are filtered. A query that breaks one goes back to the model with the exact fix.
 
 ## How this compares to the client build
 
@@ -117,8 +133,9 @@ You need Python 3.11 or newer. The first run builds the made-up warehouse, which
 
 ## Run it live
 
-1. Install [Ollama](https://ollama.com), then pull the model: `ollama pull ministral-3:8b`. It is a 6 GB
-   download, made by Mistral AI and licensed under Apache 2.0.
+1. Install [Ollama](https://ollama.com), then pull the model: `ollama pull ministral-3:14b`. It is a
+   9 GB download, made by Mistral AI and licensed under Apache 2.0. It runs on a 16 GB laptop; close
+   other heavy apps while it works.
 2. `make live` runs the acceptance test against the model. `make record` also stores the run.
 3. Ask your own question: `make ask Q="Which three regions grew fastest this year?"`. You see the SQL
    and the explanation, and nothing runs until you answer yes.
@@ -132,6 +149,7 @@ You need Python 3.11 or newer. The first run builds the made-up warehouse, which
 | [`examples.py`](src/text_to_sql_agent/examples.py) | Shows the model the most similar checked examples. They come from the practice questions only. |
 | [`writer.py`](src/text_to_sql_agent/writer.py) | One model call per attempt. The answer is held to a JSON schema: the SQL (or a reasoned refusal), the explanation, the assumptions and the tables used. |
 | [`guardrails.py`](src/text_to_sql_agent/guardrails.py) | The rules in code, on the parse tree from sqlglot. It tells a mistake to repair from a violation to refuse, and adds the row limit. |
+| [`conventions.py`](src/text_to_sql_agent/conventions.py) | The analysts' conventions in code: relative dates, counts, growth and month-over-month, checked before a query runs. |
 | [`database.py`](src/text_to_sql_agent/database.py) | The read-only connection, DuckDB's own check of the SQL and its plan, the cost check and the 10-second timeout. |
 | [`agent.py`](src/text_to_sql_agent/agent.py) | One question from start to end: tables, model, checks, confirmation, execution and the repair loop. |
 | [`metrics.py`](src/text_to_sql_agent/metrics.py) | Compares each result with the reference answer, whatever the columns are called, with numbers matched to one part in a million. |
