@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 
 import duckdb
 
+from .conventions import convention_problem
 from .database import TIMEOUT_SECONDS, DatabaseError, QueryTimeout, check_plan, run
 from .examples import ExampleBank
 from .guardrails import MAX_ROWS, SecurityViolation, SqlError, guard
@@ -161,6 +162,9 @@ class Agent:
             )
         except (SqlError, DatabaseError) as error:
             return str(error)
+        problem = convention_problem(question, guarded.sql, self.layer.as_of)
+        if problem:
+            return problem
         answer.guarded_sql = guarded.sql
         proposal = Proposal(question, guarded.sql, answer.explanation, answer.assumptions, guarded.limit_enforced)
         if self.approve is None:

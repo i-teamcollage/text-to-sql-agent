@@ -13,6 +13,7 @@ import generate
 import pytest
 import sqlglot
 
+from text_to_sql_agent.conventions import convention_problem
 from text_to_sql_agent.database import check_plan, connect, run
 from text_to_sql_agent.guardrails import MAX_ROWS, SecurityViolation, guard
 from text_to_sql_agent.metrics import CATEGORIES, results_match
@@ -72,6 +73,13 @@ def test_every_reference_query_runs_inside_the_rules_and_gives_its_stored_result
                 not item["ordered"]
                 and results_match(item["columns"], reference, result.columns, result.rows, ordered=False)
             ), item["id"]
+
+
+@pytest.mark.parametrize("split", SIZES)
+def test_every_reference_query_follows_the_conventions_the_agent_enforces(split):
+    for item in labels(split):
+        if item["kind"] == "question":
+            assert convention_problem(item["question"], item["sql"], LAYER.as_of) is None, item["id"]
 
 
 @pytest.mark.parametrize("split", SIZES)

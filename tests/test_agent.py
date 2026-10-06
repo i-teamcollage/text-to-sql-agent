@@ -55,7 +55,11 @@ def test_a_good_query_runs_and_its_rows_come_back(tmp_path, connection):
 
 
 def test_the_model_sees_the_selected_tables_and_the_checked_examples(tmp_path, connection):
-    agent, model = agent_with(tmp_path, connection, reply("SELECT 1 AS one"))
+    sql = (
+        "SELECT count(*) AS cancelled FROM orders WHERE status = 'cancelled' "
+        "AND order_date BETWEEN DATE '2026-08-01' AND DATE '2026-08-31'"
+    )
+    agent, model = agent_with(tmp_path, connection, reply(sql))
     answer = agent.answer("How many orders were cancelled last month?")
     prompt = model.requests[0]["messages"][1]["content"]
     assert "Table orders:" in prompt
@@ -71,6 +75,17 @@ def test_a_parse_error_is_sent_back_and_repaired(tmp_path, connection):
     assert answer.outcome == "answered"
     assert answer.repairs == 1
     assert "could not be parsed" in model.requests[1]["messages"][-1]["content"]
+
+
+def test_a_query_on_the_wrong_quarter_is_sent_back_before_it_runs(tmp_path, connection):
+    wrong = "SELECT count(*) AS orders FROM orders WHERE order_date BETWEEN DATE '2026-07-01' AND DATE '2026-09-30'"
+    right = "SELECT count(*) AS orders FROM orders WHERE order_date BETWEEN DATE '2026-04-01' AND DATE '2026-06-30'"
+    agent, model = agent_with(tmp_path, connection, reply(wrong), reply(right))
+    answer = agent.answer("How many orders did we get last quarter?")
+    assert answer.outcome == "answered"
+    assert answer.repairs == 1
+    assert "2026-04-01 to 2026-06-30" in model.requests[1]["messages"][-1]["content"]
+    assert len(answer.executions) == 1
 
 
 def test_an_execution_error_is_sent_back_and_repaired(tmp_path, connection):
