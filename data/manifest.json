@@ -1,0 +1,45 @@
+{
+  "as_of": "2026-09-30",
+  "tables": {
+    "categories": {
+      "rows": 12,
+      "sha256": "ba67cd848b0b08a9bb962dd21d6aa1cc9ead6c356adb36bfc0d119837968a559"
+    },
+    "customer_pii": {
+      "rows": 13952,
+      "sha256": "f019548eb12b42e95f672ce3817d07c53050e309179b12f1fef65b6f114fd52b"
+    },
+    "customers": {
+      "rows": 13952,
+      "sha256": "3e9a5279de6801cd0fa843bf1d1b5335ea3af5aec8635697068bab338b8b17db"
+    },
+    "marketing_campaigns": {
+      "rows": 27,
+      "sha256": "4ca46aae7b79ec1b11985414208b7a4f6944b0543489d0445dd8f6b28ef978fa"
+    },
+    "order_items": {
+      "rows": 69240,
+      "sha256": "fee962e02d2ee140f51a08211b4cc52cad111dbb4ac25811e5bc276ac0a82b64"
+    },
+    "orders": {
+      "rows": 34221,
+      "sha256": "7e32c89a31944642c15ff369bf992e2a83c0fd7f65793f835a5ccde2b601c73b"
+    },
+    "products": {
+      "rows": 240,
+      "sha256": "c40eb9b1f6ae7964dea453dd78c4809ecc75dac207c5f7a10e1a545b9cd9755a"
+    },
+    "refunds": {
+      "rows": 1824,
+      "sha256": "0e8f348c4368b42b873f27745eb358b3b2e9f6f0b6dcd41b11f17738e1bbfb03"
+    },
+    "regions": {
+      "rows": 8,
+      "sha256": "aa48b7c190a8aae68d2881f5019e7730dbe6135c9d5e2f8463435fb2ea9d52ba"
+    },
+    "subscriptions": {
+      "rows": 2510,
+      "sha256": "4dfed01d0f9a370f0f984842f18fd2a9570d05d66d7203ebbd8fbaf83fbf7257"
+    }
+  }
+}

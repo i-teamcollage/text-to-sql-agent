@@ -1,0 +1,251 @@
+# The semantic layer: everything the agent knows about the warehouse.
+#
+# For each question the agent picks the relevant tables from this file with a keyword search (BM25),
+# adds the tables a business definition in the question needs and the tables needed to join them, and
+# always includes every business definition and convention.
+#
+# customer_pii is restricted. It is listed here only so the guardrails know its name and its columns.
+# It is never described, never shown to the model, and never queried.
+
+as_of = 2026-09-30
+allowed_tables = [
+  "customers",
+  "regions",
+  "products",
+  "categories",
+  "orders",
+  "order_items",
+  "refunds",
+  "subscriptions",
+  "marketing_campaigns",
+]
+restricted_tables = ["customer_pii"]
+# The personal data in customer_pii. A query that names one of these columns is refused, whatever table
+# it looks for it in.
+restricted_columns = ["first_name", "last_name", "email", "phone", "street_address", "postal_code", "city"]
+
+conventions = [
+  "Today is 2026-09-30, the last day loaded. Never use current_date, now() or today(): write the dates out.",
+  "This year means 2026 (2026-01-01 to 2026-09-30). Last year means 2025. This month means September 2026, last month August 2026. This quarter means Q3 2026, last quarter Q2 2026. Year to date means 2026-01-01 to 2026-09-30. The last 12 months run from 2025-10-01 to 2026-09-30. The last N days are the N days ending on 2026-09-30, both ends included; the past week means the last 7 days.",
+  "All money is in EUR. Return numbers at full precision: never ROUND them.",
+  "Percentages, shares, rates and growth are returned on a 0 to 100 scale (12.5 means 12.5%). Growth = (current - previous) / previous * 100.",
+  "For a monthly series, group by date_trunc('month', <date column>) and call the column month.",
+  "For month-over-month growth, compare each month with the one before it (LAG). Read one extra month before the first month asked for, so its growth can be computed, and return only the months asked for.",
+  "Name products, categories, regions and campaigns by their names. Identify customers by customer_id and orders by order_id.",
+  "For a top N, or a question about which item is highest or lowest, return each item together with the measure it is ranked by, sorted, with LIMIT N (LIMIT 1 for a single item).",
+  "Customers are pseudonymous. Names, email addresses, phone numbers and postal addresses are restricted personal data and are not available.",
+  "Give result columns short snake_case names.",
+]
+
+[tables.customers]
+description = "One row per customer account: who buys from the shop. Sign-up date, country, sales region, segment (consumer or business buyer), acquisition channel and marketing consent. No personal data."
+[tables.customers.columns]
+customer_id = "Customer number, primary key."
+signup_date = "Day the account was created (DATE)."
+country_code = "Two-letter country code: AT Austria, BE Belgium, CH Switzerland, CZ Czechia, DE Germany, DK Denmark, ES Spain, FI Finland, FR France, GB United Kingdom, HU Hungary, IE Ireland, IT Italy, LU Luxembourg, NL Netherlands, NO Norway, PL Poland, PT Portugal, SE Sweden, SK Slovakia."
+region_id = "Sales region of the customer. Joins to regions.region_id."
+segment = "'consumer' or 'business'."
+acquisition_channel = "How the customer found the shop: 'organic search', 'paid search', 'social', 'email', 'referral' or 'marketplace'. NULL when unknown."
+marketing_opt_in = "TRUE when the customer agreed to receive marketing."
+
+[tables.regions]
+description = "The eight sales regions (markets) the shop sells in, each a group of countries, with the date the shop launched there."
+[tables.regions.columns]
+region_id = "Region number, primary key."
+region_name = "'Nordics', 'DACH', 'Benelux', 'France', 'Iberia', 'Italy', 'UK and Ireland' or 'Central Europe'."
+countries = "Country codes in the region as text, for example 'AT, CH, DE'. Use customers.country_code to filter on one country."
+launched_on = "Day the shop started selling in the region (DATE)."
+
+[tables.products]
+description = "The product catalogue: every item (SKU) the shop sells, with its category, today's list price, unit cost, and launch and discontinuation dates."
+[tables.products.columns]
+product_id = "Product number, primary key."
+product_name = "Product name, for example 'Cast Iron Frying Pan'."
+category_id = "Joins to categories.category_id."
+list_price = "Today's catalogue price in EUR. Not the price customers paid: use order_items.unit_price for sales."
+unit_cost = "What one unit costs the shop in EUR, used for margin."
+launched_on = "Day the product went on sale (DATE)."
+discontinued_on = "Day the product was withdrawn from sale (DATE); NULL while it is still sold."
+
+[tables.categories]
+description = "Product categories, grouped into three departments: Kitchen, Home and Garden."
+[tables.categories.columns]
+category_id = "Category number, primary key."
+category_name = "'Cookware', 'Tableware', 'Kitchen Tools', 'Coffee and Tea', 'Bedding', 'Bath', 'Lighting', 'Decor', 'Garden Tools', 'Planters', 'Outdoor Furniture' or 'Outdoor Cooking'."
+department = "'Kitchen', 'Home' or 'Garden'."
+
+[tables.orders]
+description = "One row per order (purchase, sale, checkout, basket) placed in the online shop, on the web or in the app: date, customer, status, platform, payment method, the marketing campaign it is attributed to and the discount given."
+[tables.orders.columns]
+order_id = "Order number, primary key."
+customer_id = "Who placed the order. Joins to customers.customer_id."
+order_date = "Day the order was placed (DATE)."
+status = "'delivered', 'shipped', 'processing' or 'cancelled'. Cancelled orders never count."
+platform = "'web' or 'app': where the order was placed."
+payment_method = "'card', 'wallet', 'bank transfer' or 'invoice'."
+campaign_id = "Marketing campaign the order is attributed to; NULL when none. Joins to marketing_campaigns.campaign_id."
+discount_amount = "Discount on the whole order in EUR from the campaign's discount code; 0 when none."
+
+[tables.order_items]
+description = "Order lines: which products were bought in each order, how many units and at what price. The source of revenue and of units sold."
+[tables.order_items.columns]
+order_item_id = "Order line number, primary key."
+order_id = "Joins to orders.order_id."
+product_id = "Joins to products.product_id."
+quantity = "Units bought."
+unit_price = "Price paid per unit in EUR, before the order's discount."
+
+[tables.refunds]
+description = "Money paid back to customers for returned, damaged, late or wrong items. One row per refund; an order can have more than one."
+[tables.refunds.columns]
+refund_id = "Refund number, primary key."
+order_id = "The refunded order. Joins to orders.order_id."
+refund_date = "Day the refund was paid (DATE)."
+amount = "Amount paid back in EUR."
+reason = "'damaged in transit', 'wrong item', 'late delivery', 'not as described' or 'changed mind'."
+
+[tables.subscriptions]
+description = "Plus membership subscriptions (members get free delivery), monthly or annual. One row per subscription; a member who cancels and comes back has a new row."
+[tables.subscriptions.columns]
+subscription_id = "Subscription number, primary key."
+customer_id = "The member. Joins to customers.customer_id."
+plan = "'monthly' or 'annual'."
+fee = "Price of the plan in EUR: 4.99 per month for monthly, 49.00 per year for annual."
+started_on = "Day the subscription started (DATE)."
+ended_on = "Day the subscription was cancelled (DATE); NULL while it is active."
+status = "'active' or 'cancelled'."
+
+[tables.marketing_campaigns]
+description = "Marketing campaigns and promotions: name, channel, dates, budget (spend), the discount code percentage, and the department it promoted."
+[tables.marketing_campaigns.columns]
+campaign_id = "Campaign number, primary key."
+campaign_name = "For example 'Spring Garden 2025' or 'Black Friday 2025'."
+channel = "'email', 'social', 'search', 'display' or 'affiliate'."
+start_date = "First day of the campaign (DATE)."
+end_date = "Last day of the campaign (DATE)."
+budget = "Planned spend in EUR."
+discount_pct = "Discount code percentage (0 when the campaign gave no discount)."
+department = "Department the discount applied to ('Kitchen', 'Home' or 'Garden'); NULL for the whole shop."
+
+[[joins]]
+left = "orders.customer_id"
+right = "customers.customer_id"
+
+[[joins]]
+left = "customers.region_id"
+right = "regions.region_id"
+
+[[joins]]
+left = "order_items.order_id"
+right = "orders.order_id"
+
+[[joins]]
+left = "order_items.product_id"
+right = "products.product_id"
+
+[[joins]]
+left = "products.category_id"
+right = "categories.category_id"
+
+[[joins]]
+left = "refunds.order_id"
+right = "orders.order_id"
+
+[[joins]]
+left = "subscriptions.customer_id"
+right = "customers.customer_id"
+
+[[joins]]
+left = "orders.campaign_id"
+right = "marketing_campaigns.campaign_id"
+
+[[definitions]]
+name = "counted order"
+aliases = ["orders", "order count", "number of orders"]
+description = "Every order except cancelled ones. Order counts, revenue and averages use counted orders only."
+sql = "orders.status <> 'cancelled'"
+tables = ["orders"]
+
+[[definitions]]
+name = "gross revenue"
+aliases = ["revenue", "sales", "turnover", "gross sales"]
+description = "Quantity times unit price, summed over the order lines of counted orders. Always order_items.unit_price, never products.list_price."
+sql = "SUM(order_items.quantity * order_items.unit_price) over counted orders"
+tables = ["orders", "order_items"]
+
+[[definitions]]
+name = "net revenue"
+aliases = ["net sales", "revenue after refunds and discounts"]
+description = "Gross revenue minus refunds minus discounts, for counted orders. A period's net revenue covers the orders placed in that period, with their refunds whenever they were paid. Sum lines and refunds per order before joining, so nothing is counted twice."
+sql = """
+WITH lines AS (SELECT order_id, SUM(quantity * unit_price) AS gross FROM order_items GROUP BY order_id),
+     paid_back AS (SELECT order_id, SUM(amount) AS refunded FROM refunds GROUP BY order_id)
+SELECT SUM(l.gross) - SUM(COALESCE(p.refunded, 0)) - SUM(o.discount_amount) AS net_revenue
+FROM orders o
+JOIN lines l ON l.order_id = o.order_id
+LEFT JOIN paid_back p ON p.order_id = o.order_id
+WHERE o.status <> 'cancelled'"""
+tables = ["orders", "order_items", "refunds"]
+
+[[definitions]]
+name = "average order value"
+aliases = ["aov", "average basket", "basket size", "average order"]
+description = "Gross revenue minus discounts, divided by the number of counted orders. Refunds are not subtracted."
+sql = """
+WITH lines AS (SELECT order_id, SUM(quantity * unit_price) AS gross FROM order_items GROUP BY order_id)
+SELECT (SUM(l.gross) - SUM(o.discount_amount)) / COUNT(*) AS average_order_value
+FROM orders o JOIN lines l ON l.order_id = o.order_id
+WHERE o.status <> 'cancelled'"""
+tables = ["orders", "order_items"]
+
+[[definitions]]
+name = "refund rate"
+aliases = ["return rate", "share of orders refunded"]
+description = "Counted orders with at least one refund, divided by all counted orders, times 100."
+sql = "COUNT(DISTINCT refunds.order_id) * 100.0 / COUNT(DISTINCT orders.order_id) over counted orders LEFT JOIN refunds"
+tables = ["orders", "refunds"]
+
+[[definitions]]
+name = "active customer"
+aliases = ["active customers", "active buyers"]
+description = "A customer with at least one counted order in the 90 days ending on the reference day, both ends included. The reference day is 2026-09-30 unless the question names another day, so by default the window is 2026-07-03 to 2026-09-30."
+sql = "COUNT(DISTINCT customer_id) FROM orders WHERE status <> 'cancelled' AND order_date BETWEEN DATE '2026-07-03' AND DATE '2026-09-30'"
+tables = ["orders"]
+
+[[definitions]]
+name = "new customer"
+aliases = ["new customers", "sign-ups", "signups", "new accounts"]
+description = "A customer whose account was created in the period (customers.signup_date), whether or not they ordered."
+sql = "customers.signup_date BETWEEN <first day> AND <last day>"
+tables = ["customers"]
+
+[[definitions]]
+name = "first order"
+aliases = ["first-time buyers", "first purchase", "repeat customer", "returning customer"]
+description = "A customer's first order is their earliest counted order. A repeat customer has two or more counted orders."
+sql = "MIN(order_date) per customer_id over counted orders"
+tables = ["orders"]
+
+[[definitions]]
+name = "active subscription"
+aliases = ["members", "plus members", "subscribers", "active members"]
+description = "A subscription is active on day D when started_on <= D and (ended_on IS NULL OR ended_on > D). Without a day, D is 2026-09-30."
+sql = "started_on <= DATE '2026-09-30' AND (ended_on IS NULL OR ended_on > DATE '2026-09-30')"
+tables = ["subscriptions"]
+
+[[definitions]]
+name = "churned subscription"
+aliases = ["churn", "churned", "cancelled subscriptions", "cancellations"]
+description = "A subscription that was cancelled (status = 'cancelled'). It churned on ended_on, so it churned in a period when ended_on falls in that period."
+sql = "status = 'cancelled' AND ended_on BETWEEN <first day> AND <last day>"
+tables = ["subscriptions"]
+
+[[definitions]]
+name = "churn rate"
+aliases = ["monthly churn rate", "subscription churn rate"]
+description = "For a month: subscriptions that churned during the month, divided by the subscriptions active on the first day of the month, times 100."
+sql = """
+SELECT COUNT(*) FILTER (WHERE ended_on BETWEEN DATE '2026-08-01' AND DATE '2026-08-31') * 100.0
+       / COUNT(*) FILTER (WHERE started_on <= DATE '2026-08-01' AND (ended_on IS NULL OR ended_on > DATE '2026-08-01')) AS churn_rate
+FROM subscriptions"""
+tables = ["subscriptions"]
